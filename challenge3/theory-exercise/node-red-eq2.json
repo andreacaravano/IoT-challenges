@@ -1,0 +1,152 @@
+[
+    {
+        "id": "9f87f814f24f94c6",
+        "type": "tab",
+        "label": "NodeRED_EQ2",
+        "disabled": false,
+        "info": "IoT Challenge NodeRED EQ2",
+        "env": []
+    },
+    {
+        "id": "c7505ae08ea90f21",
+        "type": "inject",
+        "z": "9f87f814f24f94c6",
+        "name": "DHT-22: read measurements",
+        "props": [
+            {
+                "p": "payload.temperature",
+                "v": "$round($random() * 100, 2)",
+                "vt": "jsonata"
+            },
+            {
+                "p": "payload.humidity",
+                "v": "$round($random() * 100, 2)",
+                "vt": "jsonata"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 220,
+        "y": 140,
+        "wires": [
+            [
+                "522e9d8f38206983"
+            ]
+        ]
+    },
+    {
+        "id": "522e9d8f38206983",
+        "type": "function",
+        "z": "9f87f814f24f94c6",
+        "name": "Arduino MKR WAN 1310",
+        "func": "let temperature = msg.payload.temperature; // = dht.readTemperature()\nlet humidity = msg.payload.humidity; // = dht.readHumidity()\n\n// eventual data preparation and adequate formatting...\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n\nlet DeviceEUI // = modem.deviceEUI()\n\n// modem.joinOTAA(...)\n\n// DHT initialization and dht.begin()",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 140,
+        "wires": [
+            [
+                "565fa791ba1ce168"
+            ]
+        ]
+    },
+    {
+        "id": "565fa791ba1ce168",
+        "type": "ttn downlink",
+        "z": "9f87f814f24f94c6",
+        "name": "LoRa message transmission routine",
+        "app": "",
+        "dev_id": "",
+        "port": "",
+        "confirmed": false,
+        "schedule": "replace",
+        "x": 850,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "1ce9274df34d7d2c",
+        "type": "ttn uplink",
+        "z": "9f87f814f24f94c6",
+        "name": "LoRa Gateway reception routines",
+        "app": "",
+        "dev_id": "",
+        "field": "",
+        "x": 190,
+        "y": 340,
+        "wires": [
+            [
+                "16634edc9b753be9"
+            ]
+        ]
+    },
+    {
+        "id": "a225fe1da22d2a98",
+        "type": "comment",
+        "z": "9f87f814f24f94c6",
+        "name": "Measurement and transmission side",
+        "info": "",
+        "x": 540,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "becb213582c95ad6",
+        "type": "comment",
+        "z": "9f87f814f24f94c6",
+        "name": "Gathering and reception side",
+        "info": "",
+        "x": 540,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "16634edc9b753be9",
+        "type": "function",
+        "z": "9f87f814f24f94c6",
+        "name": "The Things Network (Network Server)",
+        "func": "// eventual data preparation and adequate formatting...\n\nlet API_KEY = \"<omitted>\";\n\nmsg.url = \"https://api.thingspeak.com/update?api_key=\" + API_KEY + \"&field1=\" + msg.payload.temperature + \"&field2=\" + msg.payload.humidity;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 340,
+        "wires": [
+            [
+                "ecee4273425ea685"
+            ]
+        ]
+    },
+    {
+        "id": "ecee4273425ea685",
+        "type": "http request",
+        "z": "9f87f814f24f94c6",
+        "name": "ThingSpeak HTTP Integration",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "set by the function node (msg object)",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 910,
+        "y": 340,
+        "wires": [
+            []
+        ]
+    }
+]

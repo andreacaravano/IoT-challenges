@@ -1,0 +1,616 @@
+[
+    {
+        "id": "609c6f17326bdc46",
+        "type": "tab",
+        "label": "NodeRED",
+        "disabled": false,
+        "info": "IoT Challenge NodeRED",
+        "env": []
+    },
+    {
+        "id": "a34d82145b947c4f",
+        "type": "inject",
+        "z": "609c6f17326bdc46",
+        "name": "UNIX Timestamp",
+        "props": [
+            {
+                "p": "timestamp",
+                "v": "",
+                "vt": "date"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 170,
+        "y": 60,
+        "wires": [
+            [
+                "0212f8e098b84180"
+            ]
+        ],
+        "info": "The msg.timestamp field is the UNIX timestamp (number of milliseconds elapsed from the standard Epoch time discriminant (01/01/1970))."
+    },
+    {
+        "id": "0212f8e098b84180",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "Integrate random number",
+        "func": "// Random generator boundaries\nconst RAND_MAX = 30000;\nconst RAND_MIN = 0;\n\n// Integer random\nlet generated = Math.floor(Math.random() * RAND_MAX) + RAND_MIN;\nlet timestamp = msg.timestamp;\n\n// Prepare the payload format of the MQTT Publish message\n// Note this format is different from the one used in the CSV file, as per specifications\nmsg = {\n    payload: {\n        id: generated, // the generated integer random number\n        timestamp: timestamp // the left parameter being the payload field, the right one being the local variable\n    }\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 60,
+        "wires": [
+            [
+                "bdfcdf535b71f1f4",
+                "e05caeea4435b136"
+            ]
+        ]
+    },
+    {
+        "id": "bdfcdf535b71f1f4",
+        "type": "mqtt out",
+        "z": "609c6f17326bdc46",
+        "name": "Publish on ID generator",
+        "topic": "challenge3/id_generator",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "af8f08d4a85658f6",
+        "x": 690,
+        "y": 60,
+        "wires": [],
+        "info": "All MQTT publishing parameters are statically set via the node parameters.\nTopic used is challenge3/id_generator, as per specifications.\nQoS and Retain values are set to their default values (0 and False, respectively)."
+    },
+    {
+        "id": "f8e5b427758c8ee4",
+        "type": "file",
+        "z": "609c6f17326bdc46",
+        "name": "Write CSV file",
+        "filename": "/data/challenge/id_log.csv",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": false,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 880,
+        "y": 220,
+        "wires": [
+            []
+        ],
+        "info": "New content is, naturally, appended.\nLine separators are already injected by the CSV parsing node (see related notes)."
+    },
+    {
+        "id": "f3d9b89613485236",
+        "type": "csv",
+        "z": "609c6f17326bdc46",
+        "name": "Form CSV file",
+        "spec": "rfc",
+        "sep": ",",
+        "hdrin": false,
+        "hdrout": "once",
+        "multi": "one",
+        "ret": "\\n",
+        "temp": "No.,ID,TIMESTAMP",
+        "skip": "0",
+        "strings": true,
+        "include_empty_strings": true,
+        "include_null_values": true,
+        "x": 660,
+        "y": 220,
+        "wires": [
+            [
+                "f8e5b427758c8ee4"
+            ]
+        ],
+        "info": "The chosen line separators (Linux, \\n) are injected through the CSV node and not via the Write file one, so they should not be repeated.\nEmpty and null fields are included in the parsing procedure.\nHeaders, finally, are included only at the flow deployment."
+    },
+    {
+        "id": "12e2aa61e077291b",
+        "type": "mqtt in",
+        "z": "609c6f17326bdc46",
+        "name": "Subscribe on ID generator",
+        "topic": "challenge3/id_generator",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "af8f08d4a85658f6",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 320,
+        "wires": [
+            [
+                "efecfd63a360e52a"
+            ]
+        ],
+        "info": "Expected fields in the message payload are the ones published above (id and timestamp).\nTopic and reliability parameters are, again, preconfigured at their default values (QoS = 0)."
+    },
+    {
+        "id": "efecfd63a360e52a",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "ID Remainder and Limiter",
+        "func": "const REMAINDER_NUM = 7711; // constant (number of CSV entries in the provided input file)\nconst ID_PROCESS_LIMIT = 80; // maximum number of subscription-side ID messages to process\n\nlet payload = msg.payload;\n\n// Reset the message structure, for clarity\nmsg = {};\n// Modulo operation\nmsg.remainder = parseInt(payload.id) % REMAINDER_NUM;\n// Storage of the received subscription payload (it will be useful in the successive computation)\nmsg.sub = payload;\n\n// The local processing counter is updated\ncontext.set(\"process_counter\", context.get(\"process_counter\") + 1);\n\n// Checks if the resulting message is 0 (not existing, since counting starts from 1 in the CSV file, but note that it is still counted in the process limit)\n// or the processing counter has been reached and successive messages are to be discarded (no return)\nif (msg.remainder !== 0 && context.get(\"process_counter\") < ID_PROCESS_LIMIT) // <= if instead counting from 0\n    return msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n\n// The ID process counter starts from -1, as it is always incremented before usage\nif (context.get(\"process_counter\") === undefined) {\n    context.set(\"process_counter\", -1);\n}",
+        "finalize": "",
+        "libs": [],
+        "x": 450,
+        "y": 320,
+        "wires": [
+            [
+                "213a49fbc8c0f466"
+            ]
+        ]
+    },
+    {
+        "id": "49bf35e5886fec1d",
+        "type": "csv",
+        "z": "609c6f17326bdc46",
+        "name": "Parse CSV",
+        "spec": "rfc",
+        "sep": ",",
+        "hdrin": true,
+        "hdrout": "none",
+        "multi": "mult",
+        "ret": "\\n",
+        "temp": "No.,Time,Source,Destination,Protocol,Length,Source Port,Destination Port,Info,Payload",
+        "skip": "0",
+        "strings": true,
+        "include_empty_strings": true,
+        "include_null_values": true,
+        "x": 390,
+        "y": 400,
+        "wires": [
+            [
+                "2933e6daae97c7b9"
+            ]
+        ],
+        "info": "Empty and null fields are included in the parsing procedure."
+    },
+    {
+        "id": "213a49fbc8c0f466",
+        "type": "file in",
+        "z": "609c6f17326bdc46",
+        "name": "Read challenge CSV",
+        "filename": "/data/challenge/challenge3.csv",
+        "filenameType": "str",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 160,
+        "y": 400,
+        "wires": [
+            [
+                "49bf35e5886fec1d"
+            ]
+        ],
+        "info": "The provided input file is read and returned as payload to the parser node."
+    },
+    {
+        "id": "2933e6daae97c7b9",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "Check and Prepare",
+        "func": "// The input flowing in the function node is the output of the CSV read-file parsing\nlet csv_entries = msg.payload;\n// In the provided CSV, numbering starts from 1, unlike JavaScript data structures that are numbered from 0\n// As described earlier, this motivates the exclusion of the remainder 0 by dropping a possible resulting packet\nlet remainder = msg.remainder - 1;\n\n// Parsing of the packet description (type of packet)\n// Packets applying piggy-backing (transporting more than one description+payload in their structure)\n// are separated by a comma (,) and a space ( )\n// This produces an array data structure in which each packet information and payload is separated\nlet info = String(csv_entries[remainder].Info);\nlet infos = info.split(\", \");\n\n// Parsing of the packet payload\n// Packets applying piggy-backing (transporting more than one description+payload in their structure)\n// are separated by a comma (,) and a curly bracket ({)\n// This produces an array data structure in which each packet information and payload is separated\n// The curly bracket ({) is restored back since it is already part of the JSON payload inner structure\nlet payload = String(csv_entries[remainder].Payload);\nlet payloads = payload.split(\",{\");\nfor (let i = 1; i < payloads.length; i++)\n    payloads[i] = '{' + payloads[i];\n\n// A Publish Message has its own description separated by the topic through a couple of brackets (Publish Message (eventual id) [topic])\n// Therefore, the interesting part for identification is before the opening bracket ([), translating to the first position of the split result\nlet types = [];\nfor (let i = 0; i < infos.length; i++)\n    types[i] = infos[i].split(' [')[0];\n\n// Explicit assertion: the number of packet descriptions and payloads is the same.\n// A payload being null or undefined still passes this check (being it still a payload, but with a non-meaningful value).\n// A non formatted payload in a piggy-backed message (containing more than one) can't be incoherent in size.\n// The case in which the number of descriptions does not match the number of payloads is therefore not valid, in an unformatted environment.\n// Instead, the case in which the message is well formatted but one or more payloads (or its components)\n// are missing is coherent and valid parsing is performed in the following.\nlet publish_checker = 0;\ntypes.forEach(t => {\n    if (t.startsWith(\"Publish Message\"))\n        publish_checker++;\n});\nconsole.assert(publish_checker == payloads.length);\n\n// A support variable, used to gather the right payload match later\nlet non_publish_counter = 0;\n\n// A Stack (FIFO) data structure, acting as a network buffer\n// Its behaviour is ideal both for the flattening and FIFO cases (see notes)\nlet buffer = [];\nfor (let i = 0; i < infos.length; i++) {\n    let type = types[i];\n    // As shown, a publish message is declared with \"Publish Message\" at the beginning of its description\n    if (type.startsWith('Publish Message')) {\n        // Publish Messages are of course interleaved with any other piggy-backed message, potentially not being a Publish one\n        // (and therefore not carrying a payload)\n        payload = payloads[i - non_publish_counter];\n        // As described earlier, the next part of the split result is now interesting for the topic identification\n        // Next, it is also split for the closing bracket (]) being the separator for the topic identifier ending\n        let topic = infos[i].split('[')[1].split(']')[0];\n        // manage the case of null or undefined payload\n        if (payload === null || payload === undefined || payload.length === 0) {\n            payload = \"{}\"; // replace with empty JSON payload, as per specifications\n        }\n\n        // Final publishing content setup, as per specifications\n        let content = {\n            timestamp: Date.now(), // UNIX timestamp (number of milliseconds elapsed from the standard Epoch time discriminant (01/01/1970))\n            id: msg.sub.id, // ID of the message received through the ID generator subscription (see previous description)\n            topic: topic, // Identified topic\n            payload: payload // n-th payload in the message\n        }\n        \n        let result = {\n            topic: topic, // the MQTT topic on which to publish can also be set via the topic property\n            // But must be replicated in this field, since is required by the MQTT Publisher node to operate correctly\n            payload: content // Content described earlier\n        }\n\n        // FIFO data structure behaviour: the resulting publish message is pushed\n        // to be popped by successive computations\n        buffer.push(result);\n    } else if (type.includes('Ack')) {\n        non_publish_counter++;\n        // The global ACK counter is updated among (possibly) the whole Node-RED installation\n        global.set(\"ack_counter\", global.get(\"ack_counter\") + 1);\n\n        // Final ACK content setup, as per specifications\n        // The chosen format is already the one that will be parsed and stored in the CSV file\n        let content = {\n            \"No.\": global.get(\"ack_counter\"), // Global ACK counter (can be seen by the whole installation)\n            TIMESTAMP: Date.now(), // UNIX timestamp (number of milliseconds elapsed from the standard Epoch time discriminant (01/01/1970))\n            SUB_ID: msg.sub.id, // ID of the message received through the ID generator subscription (see previous description)\n            // An Acknowledgement message has its own description separated by the ID through a couple of brackets (Publish Ack (eventual id) [eventual notes])\n            // Therefore, the interesting part for identification is before the opening bracket ((), translating to the first position of the split result\n            // Then, it must be separated by the following opening bracket ([) for notes\n            MSG_TYPE: (type.split(' (')[0]).split('[')[0]\n        }\n\n        let result = {\n            // ACKs, of course, do not have a topic, as they will not be published!\n            // This is a sufficient characteristic to let the Switch node differentiate among the two message kinds!\n            payload: content\n        }\n\n        // FIFO data structure behaviour: the resulting publish message is pushed\n        // to be popped by successive computations\n        buffer.push(result);\n    } else non_publish_counter++;\n}\n\n// Node-RED operates flattening on the return structure,\n// so there will be separate messages being returned for both single and piggy-backed aggregated messages\nreturn [buffer];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n\n// The global ACK counter starts from 0, as it is always incremented before usage\n// Specifications require the global counter is reset at each flow deployment\n// This code will be executed only once, when deploying/updating the flow\nglobal.set(\"ack_counter\", 0);",
+        "finalize": "",
+        "libs": [],
+        "x": 190,
+        "y": 580,
+        "wires": [
+            [
+                "63f8e0d985487aa4"
+            ]
+        ]
+    },
+    {
+        "id": "87c20902358e09c3",
+        "type": "mqtt out",
+        "z": "609c6f17326bdc46",
+        "name": "Publish the newly-formed message",
+        "topic": "",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "af8f08d4a85658f6",
+        "x": 820,
+        "y": 480,
+        "wires": [],
+        "info": "Reliability MQTT publishing parameters are statically set via the node parameters.\nTopic used is the one received by the Publish message, as per specifications (therefore, it is dynamic).\nQoS and Retain values are set to their default values (0 and False, respectively)."
+    },
+    {
+        "id": "edbafcf8debe0c86",
+        "type": "delay",
+        "z": "609c6f17326bdc46",
+        "name": "Limit publish rate",
+        "pauseType": "rate",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "4",
+        "nbRateUnits": "1",
+        "rateUnits": "minute",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 530,
+        "y": 480,
+        "wires": [
+            [
+                "87c20902358e09c3",
+                "fbfa95e02d739960"
+            ]
+        ],
+        "info": "As per specifications, four messages per minute are allowed to be published.\nThe ones flowing outside of this constraint are queued."
+    },
+    {
+        "id": "fbfa95e02d739960",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "Prepare temperatures for plot",
+        "func": "let parsed;\n\n// The payload received through the published message is parsed.\n// If no parsing is possible (the payload is therefore invalid),\n// the payload is nulled and the whole message discarded by the successive check\ntry {\n    parsed = JSON.parse(msg.payload.payload);\n} catch (e) { parsed = null; }\n\nif (parsed !== null && // the parsed payload is null or converted to null being it unparsable\n    parsed !== undefined && // the parsed payload, even if parsed, has no useful content detected\n    parsed.type === \"temperature\" && // the message being transported is a temperature measurement\n    parsed.unit === \"F\" && // the used unit is Fahrenheit degrees\n    parsed.range !== null && // the temperature range is invalid or empty\n    parsed.range !== undefined &&\n    parsed.range.length === 2) { // temperature range is (as expected) composed by both the minimum and maximum values\n\n    let range = {\n        min: parseFloat(parsed.range[0]), // the minimum value is the first part of the range\n        max: parseFloat(parsed.range[1]) // the maximum value is the second part of the range\n    };\n    \n    // The range is prepared for plotting\n    let ret = {\n        // Average calculation\n        payload: (range.min + range.max) / 2,\n        // Storage of the parsed payload for successive computations\n        parsed: parsed\n    }\n\n    return ret;\n}",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 560,
+        "wires": [
+            [
+                "557119bc4c3ff434",
+                "54cf2d827f0fc503"
+            ]
+        ]
+    },
+    {
+        "id": "557119bc4c3ff434",
+        "type": "ui_chart",
+        "z": "609c6f17326bdc46",
+        "name": "Temperatures chart",
+        "group": "5f6050af2eaac3b7",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "label": "chart",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": 1,
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 850,
+        "y": 560,
+        "wires": [
+            []
+        ],
+        "info": "The chart is drawn: it is available at /ui"
+    },
+    {
+        "id": "54cf2d827f0fc503",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "Prepare temperatures for CSV storage",
+        "func": "// The stored temperatures counter is incremented before usage\ncontext.set(\"temp_counter\", context.get(\"temp_counter\") + 1);\n\n// The parsed payload has been piggy-backed earlier by the input node\nlet parsed = msg.parsed;\n// The average temperature value has been set as payload for plot display\nlet mean = msg.payload;\n\nmsg = {};\n\nmsg.payload = {\n                \"No.\": context.get(\"temp_counter\"), // Stored temperatures counter\n                LONG: parsed.long, // Longitude\n                LAT: parsed.lat, // Latitude\n                MEAN_VALUE: mean, // Average temperature\n                TYPE: parsed.type, // Expected type is \"temperature\" (measurement)\n                UNIT: parsed.unit, // Expected unit is \"F\" (Fahrenheit)\n                DESCRIPTION: parsed.description // A description of the payload content\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n\n// The stored temperatures counter starts from 0, as it is always incremented before usage\nif (context.get(\"temp_counter\") === undefined) {\n    context.set(\"temp_counter\", 0);\n}",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 640,
+        "wires": [
+            [
+                "cacaae8aa0c9e493"
+            ]
+        ]
+    },
+    {
+        "id": "cacaae8aa0c9e493",
+        "type": "csv",
+        "z": "609c6f17326bdc46",
+        "name": "Form CSV file",
+        "spec": "rfc",
+        "sep": ",",
+        "hdrin": false,
+        "hdrout": "once",
+        "multi": "one",
+        "ret": "\\n",
+        "temp": "No.,LONG,LAT,MEAN_VALUE,TYPE,UNIT,DESCRIPTION",
+        "skip": "0",
+        "strings": true,
+        "include_empty_strings": true,
+        "include_null_values": true,
+        "x": 880,
+        "y": 640,
+        "wires": [
+            [
+                "8c1f1960f1d7f0cc"
+            ]
+        ],
+        "info": "The chosen line separators (Linux, \\n) are injected through the CSV node and not via the Write file one, so they should not be repeated.\nEmpty and null fields are included in the parsing procedure.\nHeaders, finally, are included only at the flow deployment."
+    },
+    {
+        "id": "8c1f1960f1d7f0cc",
+        "type": "file",
+        "z": "609c6f17326bdc46",
+        "name": "Write CSV file",
+        "filename": "/data/challenge/filtered_publish.csv",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": false,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 1100,
+        "y": 640,
+        "wires": [
+            []
+        ],
+        "info": "New content is, naturally, appended.\nLine separators are already injected by the CSV parsing node (see related notes)."
+    },
+    {
+        "id": "63f8e0d985487aa4",
+        "type": "switch",
+        "z": "609c6f17326bdc46",
+        "name": "Distinguish Publish/ACK branches",
+        "property": "topic",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "nempty"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 200,
+        "y": 680,
+        "wires": [
+            [
+                "edbafcf8debe0c86"
+            ],
+            [
+                "d4bf9452c2b2513d"
+            ]
+        ],
+        "info": "Uses the topic presence as a discriminant among Publish and ACK messages.\nThe processing flow continues in two separate output branches."
+    },
+    {
+        "id": "8753f7f21c4a63ce",
+        "type": "file",
+        "z": "609c6f17326bdc46",
+        "name": "Write CSV file",
+        "filename": "/data/challenge/ack_log.csv",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": false,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 740,
+        "y": 740,
+        "wires": [
+            [
+                "dd9e05bd021f5987"
+            ]
+        ],
+        "info": "New content is, naturally, appended.\nLine separators are already injected by the CSV parsing node (see related notes)."
+    },
+    {
+        "id": "dd9e05bd021f5987",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "Prepare update for ThingSpeak",
+        "func": "// The API Key is stored as a local node variable and used as part of the URL contacted through HTTP\nlet API_KEY = \"<omitted>\";\n\nmsg = {};\nmsg.method = \"GET\";\n// A GET request to the ThingSpeak API endpoint for data writes is prepared, packing up also the global ACK counter\nmsg.url = \"https://api.thingspeak.com/update?api_key=\" + API_KEY + \"&field1=\" + global.get(\"ack_counter\");\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 820,
+        "wires": [
+            [
+                "03a4db034e60b335"
+            ]
+        ]
+    },
+    {
+        "id": "035af7e79ea75082",
+        "type": "http request",
+        "z": "609c6f17326bdc46",
+        "name": "Update ACK counter on TS through HTTP",
+        "method": "use",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1080,
+        "y": 820,
+        "wires": [
+            []
+        ],
+        "info": "The GET method and the URL endpoint for ThingSpeak are set by the preparation function."
+    },
+    {
+        "id": "03a4db034e60b335",
+        "type": "delay",
+        "z": "609c6f17326bdc46",
+        "name": "Limit TS rate",
+        "pauseType": "rate",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "20",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 810,
+        "y": 820,
+        "wires": [
+            [
+                "035af7e79ea75082"
+            ]
+        ],
+        "info": "As per the ThingSpeak free plan, one message every 15-20 seconds is allowed to be registered.\nThe ones flowing outside of this constraint are queued."
+    },
+    {
+        "id": "d4bf9452c2b2513d",
+        "type": "csv",
+        "z": "609c6f17326bdc46",
+        "name": "Form CSV file",
+        "spec": "rfc",
+        "sep": ",",
+        "hdrin": false,
+        "hdrout": "once",
+        "multi": "one",
+        "ret": "\\n",
+        "temp": "No.,TIMESTAMP,SUB_ID,MSG_TYPE",
+        "skip": "0",
+        "strings": true,
+        "include_empty_strings": true,
+        "include_null_values": true,
+        "x": 520,
+        "y": 740,
+        "wires": [
+            [
+                "8753f7f21c4a63ce"
+            ]
+        ],
+        "info": "The chosen line separators (Linux, \\n) are injected through the CSV node and not via the Write file one, so they should not be repeated.\nEmpty and null fields are included in the parsing procedure.\nHeaders, finally, are included only at the flow deployment."
+    },
+    {
+        "id": "e05caeea4435b136",
+        "type": "function",
+        "z": "609c6f17326bdc46",
+        "name": "Reformat for CSV rules",
+        "func": "// Increment the ID counter (from local node context)\ncontext.set(\"id_counter\", context.get(\"id_counter\") + 1);\n\n// Form the payload content with the parameters required by the CSV formatting\n// Starting from the ones provided as part of the Publish payload\n// In a sense, this function node also serves as a change node for the already provided parameters\n// For the CSV parsing to happen, the interested fields must be present in the output payload\nmsg.payload = {\n                \"No.\": context.get(\"id_counter\"),\n                ID: msg.payload.id,\n                TIMESTAMP: msg.payload.timestamp\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n\n// The ID counter starts from 0, as it is always incremented before usage\nif (context.get(\"id_counter\") === undefined) {\n    context.set(\"id_counter\", 0);\n}",
+        "finalize": "",
+        "libs": [],
+        "x": 690,
+        "y": 140,
+        "wires": [
+            [
+                "f3d9b89613485236"
+            ]
+        ]
+    },
+    {
+        "id": "af8f08d4a85658f6",
+        "type": "mqtt-broker",
+        "name": "Localhost 1884",
+        "broker": "localhost",
+        "port": "1884",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "5f6050af2eaac3b7",
+        "type": "ui_group",
+        "name": "IoT - Chart",
+        "tab": "7fe18ea9fc49f8e2",
+        "order": 1,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "7fe18ea9fc49f8e2",
+        "type": "ui_tab",
+        "name": "IoT - Chart",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    }
+]

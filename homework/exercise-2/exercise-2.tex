@@ -1,0 +1,352 @@
+%
+%                  Politecnico di Milano
+%
+%         Student: Caravano Andrea, Alberto Cantele
+%            A.Y.: 2024/2025
+%
+%   Last modified: 25/05/2025
+%
+%     Description: Internet of Things: Homework
+%                  Exercise n. 2
+%
+
+\documentclass[a4paper,11pt]{article} % tipo di documento
+\usepackage[T1]{fontenc} % codifica dei font
+\usepackage[utf8]{inputenc} % lettere accentate da tastiera
+\usepackage[english]{babel} % lingua del documento
+\usepackage{lipsum} % genera testo fittizio
+\usepackage{url} % per scrivere gli indirizzi Internet e/o di riferimento nella pagina
+
+\usepackage{hyperref} % per modificare il comportamento dei collegamenti ipertestuali
+
+\usepackage[margin=0.7in]{geometry} % margine di pagina
+
+\usepackage{graphicx} % per inserire immagini
+
+\usepackage{minted} % per colorazione automatica del codice (installare pygments da Homebrew)
+% \usepackage{pythonhighlight} % per Python
+
+\setminted{ % si può impostare il linguaggio specifico con \setminted[JSON] ad esempio
+    linenos=true,
+    breaklines=true,
+    encoding=utf8,
+    fontsize=\normalsize,
+    frame=lines
+}
+
+\usepackage{fancyhdr}
+\usepackage{textcomp}
+\usepackage{siunitx} % per gestione intestazione e piè di pagina
+
+\usepackage{tcolorbox} % per riquadrature di vario colore
+
+\usepackage{float} % per figure comparative flottanti
+\usepackage{amsmath} % per frazioni in display style
+
+\usepackage{icomma} % virgola come separatore decimale
+
+\usepackage{titlesec} % per configurazione del tipo paragrafo
+
+\usepackage{multirow} % righe multiple in tabelle
+
+\usepackage{subfig} % descrizione sottostante a figure
+
+% setup del tipo paragrafo
+\setcounter{secnumdepth}{4}
+
+\titleformat{\paragraph}
+{\normalfont\normalsize\bfseries}{\theparagraph}{1em}{}
+\titlespacing*{\paragraph}
+{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
+\hypersetup{ % metadati di titolo e autore nel PDF
+    hidelinks, % leva colore attorno collegamenti ipertestuali
+    pdftitle={Internet of Things: Homework - exercise n. 2},
+    pdfauthor={Andrea Caravano, Alberto Cantele}
+}
+
+\setlength{\parindent}{0pt} % rimuove l'indentazione del testo
+
+\tcbset{ % impostazioni per riquadrature
+    colback=gray!20,
+    colframe=black,
+    boxrule=0.5pt
+}
+
+\captionsetup{labelformat=empty} % rimuove la caption delle figure
+
+% Imposta la profondità dell'indice a 2 livelli (sottosezioni, non sotto-sottosezioni)
+\setcounter{tocdepth}{2}
+
+% Definizione comandi per floor e ceiling
+\newcommand{\floor}[1]{\left\lfloor #1 \right\rfloor}
+\newcommand{\ceil}[1]{\left\lceil #1 \right\rceil}
+
+\pagestyle{fancy}
+\fancyhead{}\fancyfoot{}
+\fancyhead[L]{\textbf{Internet of Things: Homework - exercise n. 2}}
+\fancyhead[R]{Andrea Caravano, Alberto Cantele}
+\fancyfoot[C]{\thepage}
+
+\title{\textbf{Internet of Things}\\Homework: exercise n. 2}
+\author{Andrea Caravano, Alberto Cantele}
+\date{Academic Year 2024--25}
+
+\begin{document}
+\maketitle
+
+%\tableofcontents
+
+\section*{Exercise text}\label{exercise-text}
+
+Consider the following pseudocode for a ESP32-based IoT monitoring system
+
+\begin{minted}{Python}
+// Global Timer Handle
+declare timer_handle as esp_timer_handle_t
+
+// Initialization
+function setup_camera():
+    initialize_camera(QVGA)
+
+function setup_timer():
+    declare timer_config as esp_timer_create_args_t
+    set timer_config.callback to process_frame
+    set timer_config.name to "10_sec_timer"
+    call esp_timer_create(&timer_config, &timer_handle)
+    call esp_timer_start_periodic(timer_handle, 10_000_000) // 10s
+
+function app_main():
+    call setup_camera()
+    call setup_timer()
+    loop forever:
+        delay(100 ms)
+
+// Called every 10 seconds
+function process_frame(arg):
+    image = capture_camera_frame()
+    person_count = estimate_number_of_people(image)
+    if person_count == 0:
+        payload = create_message(size=1KB)
+    else if person_count == 1:
+        payload = create_message(size=3KB)
+    else:
+        payload = create_message(size=6KB)
+\end{minted}
+
+Assuming the system is operated with IEEE 802.15.4 in beacon-enabled mode (CFP only) and that the number of people present in the camera frame at any instant follows a Poisson distribution with an average rate of $\lambda = 0.15$ people/frame
+
+\begin{enumerate}
+    \item Compute the Probability Mass Function of the output rate of the ESP32 P($r = r_0$), P($r = r_1$), P($r = r_2$), where $r_0$, $r_1$ and $r_2$ are the output rates when there are 0, 1 or more than 1 people in the captured frame, respectively.
+    \item Based on the output rate PMF, compute a consistent slot assignment for the CFP in a monitoring system composed of 1 PAN coordinator and 3 camera nodes. Assume nominal bit rate $R=250$ kbps, packets of $L=128$ bytes, 1 packet fits exactly in one slot. Compute $T_S$ (slot time), Number of slots in the CFP, $T_{active}$, $T_{inactive}$ and the duty cycle of the system.
+    \item How many additional cameras can be added to keep the duty cycle below 10\%?
+\end{enumerate}
+
+\section{Expected rate probability}\label{rate-probability}
+
+We are first aiming at using the standard \textsc{Poisson}'s distribution density function to determine the expected number of people per frame, outlining therefore the expectations for each available data rate.
+
+\smallskip
+
+To do this, with $N$ being the number of people per frame, we will distinguish among the cases for $N = 0$, $N = 1$ and $N \geq 2$.
+
+\medskip
+
+Given the average rate $\lambda = 0,15$ people/frame of a \textsc{Poisson} distribution, the corresponding density function is, traditionally:
+
+\smallskip
+
+$P_\lambda(n) = \dfrac{\lambda^{n}}{n!} \cdot e^{-\lambda}$
+
+\medskip
+
+Which results in:
+
+\smallskip
+
+$P(r = r_0) = P(N = 0) = \dfrac{{0,15}^0}{0!} \cdot e^{-0,15} = 1 \cdot e^{-0,15} = 0,861$
+
+\smallskip
+
+$P(r = r_1) = P(N = 1) = \dfrac{{0,15}^{1}}{1!} \cdot e^{-0,15} = 0,15 \cdot e^{-0,15} = 0,129$
+
+\smallskip
+
+$P(r = r_2) = P(N \geq 2) = 1 - P(N = 0) - P(N = 1) = 0,010$
+
+\medskip
+
+In which we outlined the last case resulting from the remainder of the first two, as it includes all the scenarios in which the number of people per frame is $\geq 2$, also relying on standard probability properties.
+
+\section{The complete monitoring system}
+
+\subsubsection{Pseudocode analysis}\label{pseudocode-analysis}
+
+The \hyperref[exercise-text]{attached pseudocode} describes a sketch of the behaviour of an overall monitoring algorithm.
+
+\smallskip
+
+The nodes, therefore, outline a periodic timer-based cycle, which involves the collection of a new frame from the connected \textsc{camera} capture device, which is then parsed, estimating the number of people present.
+
+\smallskip
+
+The payload is then formed, according to a dimensioning rule which imposes its size being $1\ kB$ (the minimum) for the case where $N = 0$ and $6\ kB$ (the maximum) for the case where $N \geq 2$.
+
+\smallskip
+
+Ultimately, the periodic timer restarts, analyzing a new frame every 10 seconds.
+
+\subsubsection{Computation}
+
+Given $R = 250\ kb/s$ and $L = 128\ Bytes$ from the text, we add the details related to the \hyperref[pseudocode-analysis]{periodic capturing and monitoring algorithm}, which underlines $d = 10\ seconds$ as the cyclic monitoring period.
+
+\medskip
+
+As shown during the exercise lectures, the nominal data rate ($R$) stems from:
+
+\medskip
+
+$R = \dfrac{L}{T_S} \Rightarrow T_S = \dfrac{L}{R} = \dfrac{128 \cdot 8\ bits}{250 \cdot 1000\ bits/second} = 4,096\ ms$
+
+\medskip
+
+In which we shown that the \textsc{Time Slot} duration can be easily derived by computing the inverse formula.
+
+\medskip
+
+In a similar way, the equivalent data rate ($r$) uses the minimum data rate as its reference, declaring, of course, subsequent ones as multiples of the reference one.
+
+\smallskip
+
+This translates to requiring:
+
+\medskip
+
+$r = \dfrac{min(l_i)\ \forall i \in [0, 1, 2]}{d} = \dfrac{1000 \cdot 8\ bit}{10\ seconds} = 800\ bits/s$
+
+\medskip
+
+In which $l_i$ represent the payload length (or size) in the three possible cases ($N = 0,\ 1\ or\ \geq 2$).
+
+\medskip
+
+This allows us to compute the inverse formula of $r$, outlining ultimately the \textsc{Beacon Interval} value:
+
+\smallskip
+
+$r = \dfrac{L}{BI} \Rightarrow BI = \dfrac{L}{r} = \dfrac{128 \cdot 8\ bits}{800\ bits/s} = 1,28\ seconds$
+
+\bigskip
+
+\label{worst-case}
+
+When planning for the slot allocation, we cannot consider anything else than the worst-case scenario: even if, as \hyperref[rate-probability]{commented earlier}, the probability of having 3 camera nodes in the system detecting more than 1 person is very low, it still represents a theoretical possibility.
+
+\smallskip
+
+In such a case, we would need to allocate the space for the maximum payload size ($6\ kB$) to all the nodes.
+
+\smallskip
+
+Each node will therefore use $\dfrac{r_x}{r} = \dfrac{6 \cdot r}{r} = 6$ slots in the worst case.
+
+\medskip
+
+Moreover, the system's active state includes only the \textsc{Collision Free Part}, for which the assigned \textsc{Guaranteed Time Slots} will ultimately be:
+
+\medskip
+
+$N_{CFP} = \displaystyle\sum_{x = 0,\ 1,\ 2} \dfrac{r_x}{r} = 3 \cdot \dfrac{6 \cdot r}{r} = 18$ slots.
+
+\medskip
+
+In which we outlined the worst case when considering 3 monitoring nodes.
+
+\bigskip
+
+\textsc{Activity} and \textsc{Inactivity} periods will immediately follow:
+
+\smallskip
+
+$T_{ACTIVE} = (18 + 1) \cdot T_S = 19 \cdot T_S = 77,824\ ms$
+
+\smallskip
+
+In which we considered an additional slot for the \textsc{Beacon} message.
+
+\medskip
+
+$T_{INACTIVE} = BI - T_{ACTIVE} = 1,28\ seconds - 0,078\ seconds = 1,202\ seconds$
+
+\medskip
+
+From which we derive, ultimately:
+
+\medskip
+
+$D_{\%} = \dfrac{T_{ACTIVE}}{T_{ACTIVE} + T_{INACTIVE}} = \dfrac{T_{ACTIVE}}{BI} = 6,08\ \%$
+
+\medskip
+
+In which we highlighted the use of both \textsc{Active} and \textsc{Inactive} parts of the \textsc{Beacon Interval}.
+
+\bigskip
+
+Being the duty cycle lower than the targeted one ($10\%$), there may still be room for fitting new camera nodes.
+
+\section{Additional camera nodes}
+
+Let's now point our resolution towards the targeted duty cycle:
+
+\smallskip
+
+$D_{\%} \leq 10 \%$, which of course translates to requiring $T_{ACTIVE} \leq 128\ ms$.
+
+\medskip
+
+Let's now call $t$ the total number of \textsc{Time Slots} ($T_S$) that can be fit in the \textsc{Active} period, as a whole and rewrite $T_{ACTIVE}$ consequently.
+
+\smallskip
+
+$T_{ACTIVE} = (t + 1) \cdot T_S \leq 128\ ms$
+
+\medskip
+
+$t \leq \floor{\dfrac{128\ ms}{T_S} - 1} = \floor{\dfrac{128\ ms}{4,096\ ms} - 1} = 30$ slots.
+
+\medskip
+
+In our current implementation, $18$ slots are presently being occupied by the worst case scenario, \hyperref[worst-case]{as shown earlier}.
+
+\smallskip
+
+Therefore, we can use the additional $30 - 18 = 12$ \textsc{Time Slots} remaining for the additional camera nodes.
+
+\medskip
+
+Assuming, \hyperref[worst-case]{as before}, to adopt the worst case scenario, we can ultimately compute the allowed number of camera nodes which may fit into the monitoring system by assigning them all of the remaining \textsc{Time Slots}.
+
+\smallskip
+
+This translates to:
+
+\medskip
+
+$N_{CFP} = \floor{\displaystyle\sum \dfrac{r_x}{r} = n \cdot \dfrac{6 \cdot r}{r} = n \cdot 6} = 12$
+
+\medskip
+
+With $n$ being the number of allowed additional camera nodes.
+
+\medskip
+
+Resulting in:
+
+\smallskip
+
+$n = \floor{\dfrac{12}{6}} = 2$
+
+\bigskip
+
+The number $n$ of additional allowed camera nodes is therefore 2.
+\end{document}
